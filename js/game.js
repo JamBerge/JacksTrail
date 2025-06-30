@@ -5,33 +5,32 @@ const config = {
     height: 450,
     physics: {
         default: 'arcade',
-        arcade: { gravity: { y: 1000 }, debug: false }
+        arcade: { gravity: { y: 0 }, debug: false }
     },
     scene: { preload, create, update }
 };
 
 let player;
-let cursors;
-let ground;
+let trees;
 let sasquatch;
-let gameOver = false;
 let score = 0;
 let scoreText;
+let gameOver = false;
+let chopKey;
 
 const game = new Phaser.Game(config);
 
 function preload () {
-    this.load.image('ground', 'https://labs.phaser.io/assets/sprites/platform.png');
-    this.load.image('forest', 'https://labs.phaser.io/assets/skies/forest.png');
+    this.load.image('background', 'https://labs.phaser.io/assets/skies/forest.png');
+    this.load.image('tree', 'https://labs.phaser.io/assets/sprites/tree.png');
     this.load.spritesheet('jack', 'https://labs.phaser.io/assets/sprites/dude.png', { frameWidth: 32, frameHeight: 48 });
+    this.load.image('sasquatch', 'https://labs.phaser.io/assets/sprites/enemy-bullet.png');
 }
 
 function create () {
-    this.add.image(400, 225, 'forest').setScale(2);
-    ground = this.physics.add.staticGroup();
-    ground.create(400, 430, 'ground').setScale(2).refreshBody();
+    this.add.image(400, 225, 'background').setScale(2);
 
-    player = this.physics.add.sprite(100, 360, 'jack');
+    player = this.physics.add.sprite(150, 360, 'jack').setScale(1.5);
     player.setCollideWorldBounds(true);
 
     this.anims.create({
@@ -42,38 +41,48 @@ function create () {
     });
 
     player.play('run');
-    cursors = this.input.keyboard.createCursorKeys();
-    this.input.on('pointerdown', jump, this);
 
-    this.physics.add.collider(player, ground);
+    trees = this.physics.add.group();
+    sasquatch = this.add.image(-100, 360, 'sasquatch').setScale(2);
 
-    scoreText = this.add.text(16, 16, 'Score: 0', { fontSize: '24px', fill: '#fff' });
+    scoreText = this.add.text(16, 16, 'Wood Collected: 0', { fontSize: '24px', fill: '#fff' });
 
-    // Sasquatch placeholder: red rectangle
-    sasquatch = this.add.rectangle(-50, 360, 40, 80, 0xff0000);
+    chopKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.input.on('pointerdown', chopTree, this);
+
+    this.time.addEvent({ delay: 2000, callback: spawnTree, callbackScope: this, loop: true });
 }
 
 function update () {
     if (gameOver) return;
 
-    if (cursors.up.isDown && player.body.touching.down) {
-        jump.call(this);
-    }
+    trees.children.iterate(function (tree) {
+        tree.x -= 4;
+        if (tree.x < -50) {
+            tree.destroy();
+            sasquatch.x += 30;
+            if (sasquatch.x > player.x - 30) {
+                gameOver = true;
+                scoreText.setText('Game Over! Wood: ' + score);
+            }
+        }
+    });
 
-    score += 0.05;
-    scoreText.setText('Score: ' + Math.floor(score));
-
-    sasquatch.x += 0.4;
-
-    if (sasquatch.x > player.x - 30) {
-        this.physics.pause();
-        gameOver = true;
-        scoreText.setText('Game Over! Final Score: ' + Math.floor(score));
+    if (Phaser.Input.Keyboard.JustDown(chopKey)) {
+        chopTree.call(this);
     }
 }
 
-function jump() {
-    if (player.body.touching.down) {
-        player.setVelocityY(-500);
+function spawnTree () {
+    let tree = trees.create(800, 360, 'tree').setScale(0.3);
+    tree.setImmovable(true);
+}
+
+function chopTree () {
+    let closest = trees.getChildren().find(tree => tree.x < player.x + 50 && tree.x > player.x - 50);
+    if (closest) {
+        closest.destroy();
+        score += 1;
+        scoreText.setText('Wood Collected: ' + score);
     }
 }
